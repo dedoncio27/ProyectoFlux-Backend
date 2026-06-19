@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
                 },
             ],
             mode: 'payment', // Pago único
-            success_url: 'https://flux-backend.vercel.app/payment/success?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url: 'https://flux-backend.vercel.app/payment/cancel',
+            success_url: 'https://flux-backend-adrians-projects-3ead0681.vercel.app/payment/success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url: 'https://flux-backend-adrians-projects-3ead0681.vercel.app/payment/cancel',
             metadata: {
                 userId: userId,
             },
