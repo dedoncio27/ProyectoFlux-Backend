@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Falta el parámetro userId" }, { status: 400 });
         }
 
-        const workouts = await sql`
+        let workouts = await sql`
             SELECT 
                 w.*,
                 COALESCE(
@@ -47,6 +47,51 @@ export async function GET(request: NextRequest) {
             GROUP BY w.id
             ORDER BY w.created_at DESC
         `;
+
+        // Si el usuario no tiene entrenamientos y no es el usuario por defecto, migrar los de "usuario@email.com"
+        if (workouts.length === 0 && userId !== 'usuario@email.com') {
+            const defaultWorkouts = await sql`
+                SELECT id FROM workouts WHERE user_id = 'usuario@email.com'
+            `;
+            
+            if (defaultWorkouts.length > 0) {
+                // Actualizar los entrenamientos del usuario por defecto al usuario actual
+                await sql`
+                    UPDATE workouts 
+                    SET user_id = ${userId}, updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = 'usuario@email.com'
+                `;
+
+                // Volver a consultar
+                workouts = await sql`
+                    SELECT 
+                        w.*,
+                        COALESCE(
+                            json_agg(
+                                jsonb_build_object(
+                                    'id', we.id,
+                                    'exercise_id', we.exercise_id,
+                                    'exercise_name', e.name,
+                                    'exercise_image', e.image_url,
+                                    'sets', we.sets,
+                                    'reps', we.reps,
+                                    'weight', we.weight,
+                                    'rest_seconds', we.rest_seconds,
+                                    'order_index', we.order_index,
+                                    'notes', we.notes
+                                ) ORDER BY we.order_index
+                            ) FILTER (WHERE we.id IS NOT NULL),
+                            '[]'
+                        ) as exercises
+                    FROM workouts w
+                    LEFT JOIN workout_exercises we ON w.id = we.workout_id
+                    LEFT JOIN exercises e ON we.exercise_id = e.id
+                    WHERE w.user_id = ${userId}
+                    GROUP BY w.id
+                    ORDER BY w.created_at DESC
+                `;
+            }
+        }
 
         return NextResponse.json(workouts);
     } catch (error: any) {
