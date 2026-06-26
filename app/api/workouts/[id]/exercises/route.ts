@@ -54,3 +54,48 @@ export async function POST(
         return NextResponse.json({ error: error.message }, { status: 400 });
     }
 }
+
+// PUT: Reemplazar/actualizar todos los ejercicios de un entrenamiento
+export async function PUT(
+    request: NextRequest,
+    context: RouteContext
+) {
+    try {
+        const sql = neon(process.env.DATABASE_URL!);
+        const { id: workoutId } = await context.params;
+        const body = await request.json();
+
+        if (!Array.isArray(body)) {
+            return NextResponse.json({ error: "El cuerpo debe ser un array de ejercicios" }, { status: 400 });
+        }
+
+        // Eliminar todos los ejercicios existentes para este entrenamiento
+        await sql`
+            DELETE FROM workout_exercises 
+            WHERE workout_id = ${workoutId}
+        `;
+
+        const results = [];
+
+        for (const item of body) {
+            const { exercise_id, sets, reps, weight, rest_seconds, order_index, notes } =
+                addExerciseSchema.parse(item);
+
+            const [record] = await sql`
+                INSERT INTO workout_exercises 
+                    (workout_id, exercise_id, sets, reps, weight, rest_seconds, order_index, notes)
+                VALUES 
+                    (${workoutId}, ${exercise_id}, ${sets}, ${reps}, ${weight}, ${rest_seconds}, ${order_index}, ${notes || null})
+                RETURNING *
+            `;
+            results.push(record);
+        }
+
+        return NextResponse.json(
+            { count: results.length, exercises: results },
+            { status: 200 }
+        );
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+}
